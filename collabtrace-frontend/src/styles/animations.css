@@ -1,0 +1,16 @@
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
+@keyframes landscape-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes marker-reveal { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(var(--marker-scale)); } to { opacity: 1; transform: translate(-50%, -50%) scale(var(--marker-scale)); } }
+@keyframes donut-legend-in { from { opacity: .35; } to { opacity: 1; } }
+.spin { animation: spin .8s linear infinite; }
+.mountain-scene svg { animation: landscape-reveal .48s ease both; }
+.mountain-marker { animation: marker-reveal .38s .18s ease both; }
+.mountain-marker.rank-2 { animation-delay: .26s; }.mountain-marker.rank-3 { animation-delay: .34s; }.mountain-marker.rank-4 { animation-delay: .42s; }
+.modal-panel { animation: modal-in .2s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
