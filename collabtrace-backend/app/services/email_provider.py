@@ -1,5 +1,6 @@
-import smtplib
 import logging
+import os
+import smtplib
 import ssl
 from email.message import EmailMessage
 from typing import Protocol
@@ -38,22 +39,48 @@ class SMTPVerificationProvider:
         if missing:
             logger.warning("SMTP configuration incomplete: %s missing", ", ".join(missing))
             raise ServiceUnavailableError("Email service unavailable")
-        message = EmailMessage()
-        message["Subject"] = "CollabTrace verification code"
-        message["From"] = config.smtp_from
-        message["To"] = email
-        message.set_content(
-            f"Your CollabTrace verification code is {code}.\n\nThis code expires in 5 minutes."
-        )
+
+        stage = "message_construction"
         try:
+            logger.info("[SMTP] stage=%s start", stage)
+            message = EmailMessage()
+            message["Subject"] = "CollabTrace verification code"
+            message["From"] = config.smtp_from
+            message["To"] = email
+            message.set_content(
+                f"Your CollabTrace verification code is {code}.\n\nThis code expires in 5 minutes."
+            )
+            logger.info("[SMTP] stage=%s success", stage)
+
+            stage = "connect"
+            logger.info("[SMTP] stage=%s start", stage)
             with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=15) as smtp:
+                logger.info("[SMTP] stage=%s success", stage)
                 if config.smtp_use_starttls:
+                    stage = "starttls"
+                    logger.info("[SMTP] stage=%s start", stage)
                     smtp.starttls(context=ssl.create_default_context())
+                    logger.info("[SMTP] stage=%s success", stage)
                 if config.smtp_username and config.smtp_password:
+                    stage = "login"
+                    logger.info("[SMTP] stage=%s start", stage)
                     smtp.login(config.smtp_username, config.smtp_password)
+                    logger.info("[SMTP] stage=%s success", stage)
+                stage = "send_message"
+                logger.info("[SMTP] stage=%s start", stage)
                 smtp.send_message(message)
-        except (OSError, smtplib.SMTPException) as exc:
-            logger.warning("SMTP delivery failed: %s", type(exc).__name__)
+                logger.info("[SMTP] stage=%s success", stage)
+                stage = "disconnect"
+                logger.info("[SMTP] stage=%s start", stage)
+            logger.info("[SMTP] stage=%s success", stage)
+        except (OSError, smtplib.SMTPException, ValueError) as exc:
+            ssl_keylogfile_set = stage == "starttls" and bool(os.environ.get("SSLKEYLOGFILE"))
+            logger.warning(
+                "[SMTP] stage=%s failed reason=%s sslkeylogfile_set=%s",
+                stage,
+                type(exc).__name__,
+                str(ssl_keylogfile_set).lower(),
+            )
             raise ServiceUnavailableError("Email service unavailable") from exc
 
 
