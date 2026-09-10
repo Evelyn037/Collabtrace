@@ -19,16 +19,29 @@ FORBIDDEN_PARTS = {
     "coverage",
     "test-results",
     "artifacts",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".idea",
+    ".vscode",
 }
 SECRET_PATTERNS = (
-    ("GitHub credential", re.compile(r"(?:ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})")),
+    (
+        "GitHub credential",
+        re.compile(r"(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"),
+    ),
+    ("Bearer credential", re.compile(r"(?i)Bearer[ \t]+[A-Za-z0-9._~-]{24,}")),
     ("private key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
 )
 SENSITIVE_ASSIGNMENT = re.compile(
-    r"(?im)^[ \t]*(SMTP_PASSWORD|JWT_SECRET|VERIFICATION_CODE_SECRET|GITHUB_TOKEN)"
+    r"(?im)^[ \t]*(GITHUB_TOKEN|GH_TOKEN|JWT_SECRET|SECRET_KEY|VERIFICATION_SECRET|"
+    r"VERIFICATION_CODE_SECRET|SMTP_PASSWORD|SMTP_AUTH_CODE|EMAIL_PASSWORD)"
     r"[ \t]*=[ \t]*([^\r\n]*)$"
 )
 PLACEHOLDER_PREFIXES = ("<", "${", "$", "your", "change", "replace", "example", "test", "dummy")
+LOCAL_PATH_PATTERNS = (
+    ("Windows user path", re.compile(r"(?i)[A-Z]:\\(?:Users|Documents and Settings)\\[^\\\s]+\\")),
+    ("POSIX user path", re.compile(r"/(?:Users|home)/[^/\s]+/")),
+)
 
 
 def tracked_files() -> list[str]:
@@ -45,13 +58,21 @@ def forbidden_reason(path: str) -> str | None:
     normalized = PurePosixPath(path.replace("\\", "/"))
     parts = set(normalized.parts)
     name = normalized.name.lower()
-    if name in {".env", ".env.local", ".ds_store", "thumbs.db"}:
+    if (
+        (name == ".env" or name.startswith(".env."))
+        and name != ".env.example"
+    ) or name in {".ds_store", "thumbs.db"}:
         return "environment or operating-system file"
-    if name.endswith((".db", ".sqlite", ".sqlite3", ".pyc", ".log", ".tsbuildinfo")):
+    if name.endswith(
+        (
+            ".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".pyc",
+            ".log", ".tsbuildinfo", ".bak", ".backup",
+        )
+    ):
         return "generated or sensitive file type"
     if parts & FORBIDDEN_PARTS:
         return "generated/dependency directory"
-    if "data" in parts and "backups" in parts:
+    if parts & {"backup", "backups"}:
         return "database backup"
     return None
 
@@ -85,14 +106,24 @@ def main() -> int:
             if pattern.search(content):
                 failures.append((relative, "potential secret", category))
         path = PurePosixPath(relative.replace("\\", "/"))
-        assignment_config = path.name.startswith(".env") or path.suffix.lower() in {
-            ".cfg", ".conf", ".ini", ".toml", ".yaml", ".yml",
+        is_test_source = "tests" in path.parts or path.name.endswith((".test.ts", ".test.tsx"))
+        assignment_document = path.name.startswith(".env") or path.suffix.lower() in {
+            ".cfg", ".conf", ".ini", ".md", ".rst", ".toml", ".yaml", ".yml",
         }
-        if assignment_config:
+        if not is_test_source:
             for match in SENSITIVE_ASSIGNMENT.finditer(content):
                 value = match.group(2).strip().strip('"\'')
-                if value and not value.lower().startswith(PLACEHOLDER_PREFIXES):
+                raw_value = match.group(2).strip()
+                source_literal = raw_value.startswith(('"', "'"))
+                if (
+                    (assignment_document or source_literal)
+                    and value
+                    and not value.lower().startswith(PLACEHOLDER_PREFIXES)
+                ):
                     failures.append((relative, "non-placeholder secret assignment", match.group(1)))
+        for category, pattern in LOCAL_PATH_PATTERNS:
+            if pattern.search(content):
+                failures.append((relative, "local absolute path", category))
 
     if failures:
         for path, category, detail in sorted(set(failures)):

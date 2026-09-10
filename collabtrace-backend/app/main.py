@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app import __version__
 from app.github.client import GitHubAPIError
 from app.database.db import init_db
 from app.routes.analytics import router as analytics_router
@@ -28,7 +29,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="CollabTrace", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="CollabTrace API", version=__version__, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().frontend_origins,
@@ -88,4 +89,4 @@ async def service_unavailable_handler(_: Request, exc: ServiceUnavailableError) 
 
 @app.get("/health", tags=["System"])
 async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "CollabTrace GitHub PoC"}
+    return {"status": "ok", "service": "CollabTrace API", "version": __version__}

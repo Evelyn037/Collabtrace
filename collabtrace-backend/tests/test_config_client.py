@@ -3,10 +3,29 @@ import json
 import httpx
 import pytest
 
+from app import __version__
 from app.config import load_settings
 from app.github.client import GitHubClient
 from app.github.service import GitHubService
 from app.routes.github import auth_status, build_probe_warnings, save_probe_result
+
+
+def test_application_version_has_single_source():
+    from app.main import app
+
+    assert app.title == "CollabTrace API"
+    assert app.version == __version__
+
+
+@pytest.mark.asyncio
+async def test_health_reports_formal_service_identity_and_version():
+    from app.main import health
+
+    assert await health() == {
+        "status": "ok",
+        "service": "CollabTrace API",
+        "version": __version__,
+    }
 
 
 def test_empty_token_is_not_configured(tmp_path, monkeypatch):

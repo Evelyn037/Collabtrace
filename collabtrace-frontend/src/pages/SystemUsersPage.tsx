@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../api/admin'
 import { errorMessage } from '../api/client'

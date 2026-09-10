@@ -16,7 +16,7 @@ from app.models.contribution import ContributionEvent
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/api/github", tags=["GitHub PoC"], dependencies=[Depends(require_admin)]
+    prefix="/api/github", tags=["GitHub Diagnostics"], dependencies=[Depends(require_admin)]
 )
 
 

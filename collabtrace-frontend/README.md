@@ -10,11 +10,12 @@ CollabTrace（协作透镜）前端将 FastAPI Backend 中的真实 GitHub 协�
 - ECharts（Pie / Line 按需加载）
 - Lucide React
 - Vitest + React Testing Library + jest-dom + user-event
+- ESLint + TypeScript ESLint + React Hooks rules
 
 ## Install and environment
 
 ```powershell
-npm install
+npm ci
 Copy-Item .env.example .env
 ```
 
@@ -40,11 +41,12 @@ npm run dev
 
 ```powershell
 npm run lint
+npm run typecheck
 npm run test
 npm run build
 ```
 
-单元测试 Mock 前端 API module，不连接真实 Backend、GitHub 或 SMTP。
+`lint` 运行真正的 ESLint；`typecheck` 独立运行 TypeScript compiler checks。单元测试 Mock 前端 API module，不连接真实 Backend、GitHub 或 SMTP。`package-lock.json` 是可复现安装来源，应保留并在 CI/fresh clone 中使用 `npm ci`。
 
 ## Routes
 

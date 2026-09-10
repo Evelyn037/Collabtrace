@@ -8,6 +8,8 @@ from typing import Any
 import certifi
 import httpx
 
+from app import __version__
+
 
 @dataclass(slots=True)
 class RateLimitInfo:
@@ -45,7 +47,7 @@ class GitHubClient:
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "CollabTrace-GitHub-PoC",
+            "User-Agent": f"CollabTrace/{__version__}",
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"

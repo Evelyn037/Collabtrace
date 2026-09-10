@@ -1,1 +1,3 @@
-"""CollabTrace GitHub API PoC backend."""
+"""CollabTrace backend package."""
+
+__version__ = "0.2.0"

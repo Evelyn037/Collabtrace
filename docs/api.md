@@ -58,6 +58,6 @@ RCI requests read SQLite and never trigger GitHub network activity.
 | Create/list/update user | `POST/GET /api/users`, `PATCH /api/users/{id}` | System Admin | user fields → safe user response | 401/403/404/409/422 |
 | GitHub auth status | `GET /api/github/auth-status` | System Admin | — → mode and rate limit, never token | 401/403/429/5xx |
 | GitHub diagnostics | `/api/github/{owner}/{repo}/...` | System Admin | bounded diagnostic query → normalized data/warnings | 401/403/404/429/5xx |
-| Health | `GET /health` | Public | — → service status | — |
+| Health | `GET /health` | Public | — → status, `CollabTrace API` service name and version | — |
 
 API responses never include password hashes, JWT secrets, verification digests, SMTP passwords or GitHub tokens.

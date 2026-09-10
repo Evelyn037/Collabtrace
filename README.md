@@ -1,6 +1,6 @@
 # CollabTrace · 协作透镜
 
-CollabTrace 从真实 GitHub Commit、Pull Request、Issue 与 Code Review 中构建可视化、可解释、可追溯的团队贡献视图。它解决课程团队项目中协作过程不可见、个人贡献难以客观说明、结论缺少原始证据链的问题。
+CollabTrace 是一个前后端分离的协作贡献分析系统。它从真实 GitHub Commit、Pull Request、Issue 与 Code Review 中构建可视化、可解释、可追溯的团队贡献视图，解决课程团队项目中协作过程不可见、个人贡献难以客观说明、结论缺少原始证据链的问题。
 
 RCI（Relative Contribution Index，相对贡献指数）只描述当前仓库、当前同步范围内可验证的 GitHub 协作行为，不是绩效、能力、代码质量、工作时长或绝对劳动价值评分。
 
@@ -54,9 +54,11 @@ Frontend 不直接请求 `api.github.com`，GitHub Token 只存在后端环境�
 
 ```text
 collabtrace/
+├── .github/workflows/       # Continuous integration checks
 ├── collabtrace-backend/   # API, GitHub integration, persistence, analytics
 ├── collabtrace-frontend/  # Product UI
 ├── docs/                  # Architecture, API, RCI, permissions and demo docs
+├── scripts/               # Release hygiene and submission packaging
 └── README.md
 ```
 
@@ -111,7 +113,25 @@ On macOS/Linux use `cp .env.example .env`. Frontend: `http://localhost:5173`.
 
 ## Environment variables
 
-Backend `.env.example` defines `GITHUB_TOKEN`, `DATABASE_URL`, JWT settings, verification provider/secret, SMTP settings, quick-analyze limits and CORS origins. Frontend only needs `VITE_API_BASE_URL`.
+Copy each committed `.env.example` to an ignored local `.env`. Empty secret fields have no shared default and must be generated locally.
+
+| Variable | Required | Development default | Purpose / non-development recommendation |
+|---|---|---|---|
+| `GITHUB_TOKEN` | No for public repositories | Empty | Raises GitHub API limits; use a least-privilege fine-grained PAT |
+| `DATABASE_URL` | Yes | `sqlite:///./data/collabtrace.db` | SQLite connection; use a persistent writable path |
+| `JWT_SECRET` | Yes | Empty | JWT signing; generate an independent random value |
+| `JWT_ALGORITHM` | Yes | `HS256` | JWT algorithm used by the current implementation |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Yes | `480` | Access-token lifetime |
+| `VERIFICATION_CODE_SECRET` | Yes | Empty | HMAC key for verification-code digests; do not reuse the JWT key |
+| `VERIFICATION_PROVIDER` | Yes | `console` | `console` for development, `smtp` for actual email delivery |
+| `SMTP_HOST`, `SMTP_FROM` | SMTP only | Empty | SMTP server and authorized sender |
+| `SMTP_PORT` | SMTP only | `587` | STARTTLS port |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | Provider-dependent | Empty | SMTP account and authorization credential from secret storage |
+| `SMTP_USE_STARTTLS` | SMTP only | `true` | Keep enabled for QQ Mail on port 587 |
+| `QUICK_ANALYZE_MAX_PAGES` | Yes | `1` | Bounds interactive GitHub collection |
+| `QUICK_ANALYZE_MAX_PRS_FOR_REVIEWS` | Yes | `5` | Bounds review collection |
+| `FRONTEND_ORIGINS` | Yes | Local ports 5173 | Exact comma-separated browser origins; do not use wildcard credentialed CORS |
+| `VITE_API_BASE_URL` | Frontend | `http://127.0.0.1:8000` | FastAPI base URL embedded by Vite |
 
 - Public GitHub repositories work without a PAT, but rate limits are lower.
 - `VERIFICATION_PROVIDER=console` prints one-time codes to the backend console for local development; it is not real email delivery.
@@ -119,6 +139,18 @@ Backend `.env.example` defines `GITHUB_TOKEN`, `DATABASE_URL`, JWT settings, ver
 - Never commit `.env`, JWT/verification secrets, SMTP credentials, SQLite databases or backup databases.
 
 The complete required/optional/default/recommendation matrix and QQ instructions are in [Deployment](docs/deployment.md). A deployed instance uses the server operator's configured sender; end users do not configure SMTP themselves.
+
+## Database
+
+The current course version uses SQLite and SQLAlchemy `metadata.create_all()` schema creation. On first Backend startup, tables are created automatically at `collabtrace-backend/data/collabtrace.db` unless `DATABASE_URL` overrides the location. Database files and backups are local runtime data and must never be committed or included in a submission archive.
+
+## Authentication and authorization
+
+Passwords are stored as Argon2id hashes and successful login returns a signed JWT. System roles govern System Users and GitHub diagnostics; repository roles independently govern Sync, Mapping and Access changes for one repository. Frontend guards improve navigation, but every protected operation is authorized again by FastAPI dependencies.
+
+## GitHub integration
+
+All GitHub REST API access occurs in the Backend. A PAT is optional for public repositories but recommended for higher rate limits; it must be read from the Backend environment and granted only the required repository read access. Collection is bounded, normalized into stable Contribution Events, persisted in SQLite and then read by analytics without another GitHub request.
 
 ## First System Admin and demo accounts
 
@@ -167,12 +199,16 @@ cd collabtrace-backend
 python -m pytest
 
 cd ..\collabtrace-frontend
+npm run typecheck
+npm run lint
 npm test
 npm run build
-npm run lint
+
+cd ..
+python scripts/check_release_hygiene.py
 ```
 
-The Phase 4 test record and manual verification scope are in [Testing](docs/testing.md). No claim is made for load testing, penetration testing or 100% coverage.
+`typecheck` runs TypeScript compiler checks; `lint` runs ESLint. Current automated scope and manual verification guidance are in [Testing](docs/testing.md). No claim is made for load testing, penetration testing or 100% coverage.
 
 ## Demo data safety
 
@@ -193,13 +229,17 @@ Review every listed identifier before using `--apply`. The tool recognizes tight
 - GitHub credentials never enter frontend code or API responses.
 - Sync scope is bounded; CollabTrace does not claim to analyze complete GitHub history.
 
-Before release, run `python scripts/check_release_hygiene.py`. For a reviewed repository with a real commit, create a submission archive with:
+Before release, commit the reviewed source and leave the non-ignored working tree clean. Then run:
 
 ```powershell
-git archive --format=zip --output=collabtrace-submission.zip HEAD
+python scripts/create_submission_archive.py
 ```
 
-`git archive` packages only committed files, which prevents ignored local `.env`, databases, backups, virtual environments and `node_modules` from being copied accidentally. Review the archive before submission. Do not use it until a real baseline commit exists.
+The script runs release hygiene first, refuses a dirty tree, uses `git archive` to package only committed files, and verifies the ZIP contains no forbidden runtime paths. The output is `submission/collabtrace-submission.zip`. Never compress the development directory directly.
+
+## Deployment scope and known limitations
+
+CollabTrace 0.2.0 is a local/self-hostable full-stack application, not a public cloud SaaS or distributed production platform. SQLite and automatic schema creation fit the current course scope. Production hardening would include a managed database such as PostgreSQL, formal schema migrations, HTTPS, stricter browser-session/cookie strategy, managed secrets, production SMTP operations, monitoring, backups and deployment configuration. These are documented future improvements, not implemented features.
 
 ## Documentation
 

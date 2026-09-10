@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: collabtrace-backend
+    env:
+      DATABASE_URL: sqlite:///./data/ci.db
+      JWT_SECRET: test_ci_jwt_secret_not_for_production
+      VERIFICATION_CODE_SECRET: test_ci_verification_secret_not_for_production
+      VERIFICATION_PROVIDER: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: collabtrace-backend/requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: collabtrace-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: collabtrace-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  repository-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_release_hygiene.py

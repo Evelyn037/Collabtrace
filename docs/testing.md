@@ -1,56 +1,62 @@
 # Testing
 
-## Automated commands
+## Automated verification
+
+Run the Backend suite from the repository root:
 
 ```powershell
 cd collabtrace-backend
 python -m pytest
-
-cd ..\collabtrace-frontend
-npm test
-npm run build
-npm run lint
 ```
 
-Backend tests cover normalization, persistence, sync dedup/update/failure/cancellation, authentication, registration/code flow, repository-scoped access, mapping, analytics and RCI invariants. Frontend tests cover authentication UI, routing/guards, repository role switching, admin separation, Dashboard RCI interactions, modal behavior, contributor evidence and medals.
+Backend tests use temporary SQLite databases, mock GitHub transports/services and mock SMTP transports. They cover configuration, normalization, persistence, sync deduplication/update/failure behavior, authentication, registration and verification codes, System/Repository Role separation, mapping, Evidence, analytics, RCI invariants, release-sensitive logging and safe SMTP errors. Automated tests never send real email or require a real GitHub token.
 
-## Phase 4 executed checks
+Run each Frontend quality gate separately:
 
-- Baseline: Backend 55 passed; Frontend 36 passed; build and lint passed.
-- Cleanup tool: dry-run selection, protected mixed-access account, safe mapping unlink and apply behavior.
-- Live public repository Analyze against GitHub with bounded scope.
-- Existing Repo MEMBER Analyze rejection with unchanged sync count.
-- Repeated sync event-ID dedup and cancellation-to-FAILED behavior.
-- Real SQLite RCI baseline/custom comparison, total tolerance, composition and Evidence invariance.
-- Repository role and System Role separation through API/UI.
-- Persistence across a controlled backend stop/start.
-- Browser inspection at 1440, 1024 and 390, including console and request destinations.
-- Secret-name/pattern scan and production hard-code scan.
+```powershell
+cd collabtrace-frontend
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
 
-Final regression: Backend 60 passed with 0 failures; Frontend 36 passed with 0 failures; production build and TypeScript lint passed. The backend emitted two third-party deprecation warnings plus a local pytest-cache permission warning; none affected runtime behavior or test results.
+- `typecheck` runs TypeScript compiler checks for application and Vite configuration.
+- `lint` runs ESLint with JavaScript/TypeScript recommended rules, React Hooks rules and Fast Refresh export checks.
+- `test` runs Vitest, Testing Library and jsdom tests with mocked API modules.
+- `build` repeats type checking and creates the Vite production bundle.
 
-## Final engineering finalization
+Run repository release checks from the root:
 
-- Modification baseline: Backend 60 passed; Frontend 36 passed; lint and build passed.
-- Added offline SMTP transport tests for timeout, STARTTLS, authenticated login, message sending, incomplete configuration, safe transport failure, console fallback and non-disclosure.
-- Added FLOW log tests for Analyze/Sync stages, real persistence counts, failure visibility and secret non-disclosure.
-- Built an isolated prospective release copy from the Git-ignore-filtered source set. It contained no local environment, database, backup, dependency or build directories.
-- In that isolated copy, a new Python virtual environment installed `requirements.txt` and passed 69 Backend tests; a new `npm ci` installation passed 36 Frontend tests, lint and build. `/health` also returned successfully from the isolated Backend.
-- This is not labeled a true clean checkout because the current Git repository has no first commit or `HEAD`. A genuine clone/archive validation must follow the reviewed baseline commit.
-- Final working-tree regression passed 69 Backend tests, 36 Frontend tests, lint and build. The existing working directory's `npm ci` could not remove one stale native Rollup file because of a Windows ACL/lock (`EPERM`); `npm install` restored the local dependencies and the full frontend validation passed afterward. This local cleanup caveat does not affect the isolated successful `npm ci` result.
-- `npm audit --omit=dev` reported three moderate advisories affecting ECharts and React Router. Available automatic fixes require major-version upgrades; they were not applied during feature freeze. Current chart labels are fixed metric/date labels and navigation targets are application-controlled, reducing exposure, but the dependency migrations remain release follow-up work.
+```powershell
+python scripts/check_release_hygiene.py
+```
 
-## Manual E2E checklist
+The checker reads Git tracked files only. It rejects local environments, dependency/build/cache directories, databases and backups, credential-shaped values, non-placeholder sensitive assignments, private keys and obvious developer-specific absolute paths without printing secret values.
 
-- Authentication: username/password, email/password, code login, registration, logout, invalid/disabled handling.
-- Repository: create/analyze, loading, role assignment, selector, sync and history.
-- RCI: baseline, custom values/ranking, active dimensions, coverage, medals and disclaimer.
-- Invariance: same contributor composition and same Evidence before/after weights.
-- Explainability: Calculation Basis and Why This RCI values match API fields.
-- Evidence: real URL, new tab, `noopener noreferrer`.
-- Empty/error: 401, 403, 404, missing repository, no contributors/timeline/evidence/sync history.
-- Responsive: Header, selector, mountain, medals, weight/methodology/quick-view dialogs and Admin Center.
+## Continuous integration
 
-## Scope statement
+`.github/workflows/ci.yml` runs three independent jobs for pushes and pull requests:
 
-This project does not claim load testing, penetration testing, 100% coverage, cross-browser certification or production SMTP delivery. `VERIFICATION_PROVIDER=console` verifies only the local console flow unless SMTP is separately configured and tested.
+1. Backend dependency installation and pytest on Python 3.12.
+2. Frontend `npm ci`, typecheck, ESLint, tests and build on Node 22.
+3. Dependency-free repository hygiene validation.
+
+CI uses test-only placeholder secrets, mocks external services and requires no repository credentials.
+
+## Manual smoke checklist
+
+- Authentication: password login, email-code login, registration, logout, invalid and disabled handling.
+- Repository: Analyze, first-admin assignment, selector, role-aware Sync and Sync History.
+- RCI: Research Baseline, Custom Weights, active dimensions, coverage, medals and disclaimer.
+- Invariance: Contribution Composition and Evidence do not change with personal weights.
+- Explainability: Calculation Basis and Why This RCI agree with API fields.
+- Evidence: original GitHub URL opens in a new tab with `noopener noreferrer`.
+- Authorization: System Admin and Repository Admin controls remain independent; direct unauthorized API calls fail.
+- Empty/error states: 401, 403, 404, missing data, empty analytics and failed sync.
+- Responsive layout: header, selector, mountain, dialogs, Evidence and Admin Center.
+- Optional integration: bounded Analyze against a public repository and a separately authorized real SMTP inbox test.
+
+## Test scope
+
+Passing automated checks confirms the current covered behavior; it is not a claim of 100% coverage, load testing, penetration testing, cross-browser certification, complete GitHub history or production SMTP availability. Record exact test counts in a dated release report rather than hard-coding them in this maintained guide.

@@ -6,7 +6,7 @@ CollabTrace V1 is a local/self-hostable full-stack application. No cloud deploym
 
 Prerequisites are Git, Python 3.11+ and Node.js 20.19+ or 22.12+ with npm, as required by Vite 7. Clone the repository, then follow the platform-specific Backend and Frontend commands in the root README. A fresh machine must create its own `.venv`, install Python requirements, run `npm ci`, and create local `.env` files from the examples. It does not need the original developer's `.venv`, `.deps`, `node_modules`, database or secrets.
 
-SQLite tables are created on Backend startup. The default database is `collabtrace-backend/data/collabtrace.db`; preserve and back it up when it contains useful synchronized data.
+SQLite tables are created on Backend startup. The default database is `collabtrace-backend/data/collabtrace.db`; preserve and back it up when it contains useful synchronized data. Backend direct dependencies are pinned in `requirements.txt`; Frontend dependency resolution is locked by `package-lock.json` and installed with `npm ci`.
 
 ## Environment configuration
 
@@ -63,13 +63,13 @@ When deployed, every user receives messages from the sender mailbox configured b
 
 ## Safe GitHub release and ZIP packaging
 
-Review `git status`, create a genuine commit, and confirm the hygiene checker passes. Then use:
+Review `git status`, commit the reviewed source and leave the non-ignored tree clean. Then use:
 
 ```powershell
-git archive --format=zip --output=collabtrace-submission.zip HEAD
+python scripts/create_submission_archive.py
 ```
 
-This archives committed content only. Directly compressing the development directory can accidentally include ignored credentials, databases and dependency directories. Always inspect the resulting ZIP before sharing it.
+The script runs `check_release_hygiene.py`, refuses a dirty tree, archives committed content only and inspects the resulting `submission/collabtrace-submission.zip` for forbidden paths. Directly compressing the development directory can accidentally include ignored credentials, databases and dependency directories.
 
 ## Fresh clone verification checklist
 
@@ -77,8 +77,10 @@ This archives committed content only. Directly compressing the development direc
 2. Create the Backend virtual environment and install `requirements.txt`.
 3. Copy both `.env.example` files and generate new local secrets.
 4. Run Backend tests and start `/health`.
-5. Run `npm ci`, frontend tests, lint and build.
+5. Run `npm ci`, frontend typecheck, ESLint, tests and build.
 6. Start the frontend and verify its configured API origin.
 7. Configure SMTP only with credentials owned by the new operator; perform a real inbox smoke test separately.
 
-The current working repository must have a real first commit before a true clean-checkout test or `git archive HEAD` can be performed.
+## Production hardening / future improvements
+
+The current course release intentionally keeps SQLAlchemy automatic schema creation and SQLite. A production deployment would need a managed database such as PostgreSQL, formal schema migrations, HTTPS, a reviewed secure-cookie/session strategy, managed secrets, production SMTP operations, monitoring, tested backup/restore and explicit deployment configuration. These are future improvements, not capabilities claimed or implemented by this repository.
