@@ -29,6 +29,15 @@ The frontend only calls FastAPI. GitHub credentials and GitHub API traffic remai
 - `app/database`: SQLAlchemy engine and persistent models.
 - `app/models`: validated request/response and contribution schemas.
 
+## Authentication flow
+
+```text
+Register: React → FastAPI validation → Argon2id hash → SQLite
+Login: React → nickname/email lookup → Argon2id verify → signed JWT
+```
+
+Public registration always creates a global `MEMBER` (shown as Standard User). Email is unique and normalized, but remains unverified. SMTP and verification codes are not dependencies of startup, registration or login.
+
 ## Data flow
 
 1. A user submits `owner/repo` or an allowed `github.com` URL.
@@ -60,7 +69,7 @@ erDiagram
 - `User`: account identity and System Role.
 - `UserCredential`: Argon2id hash and active flag.
 - `UserContact`: optional unique email and verification state.
-- `VerificationCode`: hashed, expiring, purpose-specific code; no plaintext code is stored.
+- `VerificationCode`: legacy compatibility table retained to avoid a destructive migration; it is not used by the current authentication flow.
 - `Repository`: GitHub repository metadata and last sync time.
 - `RepositoryAccess`: per-user, per-repository role.
 - `Member`: GitHub contributor identity and optional CollabTrace user mapping.

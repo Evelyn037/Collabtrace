@@ -17,38 +17,27 @@ SQLite tables are created on Backend startup. The default database is `collabtra
 | `JWT_SECRET` | Yes | No shared default | Independent random value, at least 48 random bytes |
 | `JWT_ALGORITHM` | Yes | `HS256` | Keep `HS256` unless code and migration are reviewed |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Yes | `480` | Choose an appropriate session lifetime |
-| `VERIFICATION_CODE_SECRET` | Yes | No shared default | Independent random value; do not reuse JWT secret |
-| `VERIFICATION_PROVIDER` | Yes | `console` | `smtp` for real email; console is development only |
-| `SMTP_HOST` | SMTP only | Empty | SMTP server hostname |
-| `SMTP_PORT` | SMTP only | `587` | Provider's STARTTLS port |
-| `SMTP_USERNAME` | Provider-dependent | Empty | Complete sender mailbox when authentication is used |
-| `SMTP_PASSWORD` | Provider-dependent | Empty | SMTP authorization credential from secret storage |
-| `SMTP_FROM` | SMTP only | Empty | Authorized sender email address |
-| `SMTP_USE_STARTTLS` | SMTP only | `true` | Keep enabled for QQ port 587 |
+| `VERIFICATION_CODE_SECRET`, `VERIFICATION_PROVIDER` | No; legacy only | Empty / `console` | Inactive compatibility subsystem; not used by registration or login |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_STARTTLS` | No; legacy only | Empty / `587` / `true` | Inactive compatibility configuration; not a production dependency |
 | `QUICK_ANALYZE_MAX_PAGES` | Yes | `1` | Keep bounded for interactive Analyze |
 | `QUICK_ANALYZE_MAX_PRS_FOR_REVIEWS` | Yes | `5` | Keep bounded for interactive Analyze |
 | `FRONTEND_ORIGINS` | Yes | Local 5173 origins | Comma-separated exact deployed frontend origins |
 | `VITE_API_BASE_URL` | Frontend build/runtime | `http://127.0.0.1:8000` | Public URL of the deployed FastAPI service |
 
-Generate JWT and verification secrets with the provided `python -m app.cli init-*` commands or independently with Python's `secrets` module. Never commit generated values.
+Generate the JWT secret with `python -m app.cli init-jwt-secret` or independently with Python's `secrets` module. Never commit generated values.
 
-## QQ SMTP configuration
+## Password-only authentication
 
-Enable SMTP in the QQ Mail account and create an SMTP authorization code. This code is not the QQ login password. Put the following values only in the ignored Backend `.env`:
+The active V1 account flow has no email-delivery dependency:
 
-```dotenv
-VERIFICATION_PROVIDER=smtp
-SMTP_HOST=smtp.qq.com
-SMTP_PORT=587
-SMTP_USERNAME=<complete QQ email address>
-SMTP_PASSWORD=<QQ SMTP authorization code>
-SMTP_FROM=<complete QQ email address>
-SMTP_USE_STARTTLS=true
+```text
+Register: nickname + email + password + confirm password
+Login: nickname or email + password
 ```
 
-Restart FastAPI after changing the configuration, request a registration code using a real recipient you control, and confirm receipt in the inbox. Do not paste the authorization code into prompts, screenshots, source code or issue reports. Mock tests prove transport behavior but do not prove real QQ delivery.
+The API and database continue to use `username` as the nickname identity. Email is normalized and unique, but it is not verified ownership. Public registration always creates a global `MEMBER`; repository administration remains separately scoped.
 
-When deployed, every user receives messages from the sender mailbox configured by the server operator. End users do not provide their own SMTP settings. Developers who clone and self-host CollabTrace must configure their own credentials.
+The legacy verification table, provider modules and optional environment names remain only to avoid destructive database/code cleanup. No public verification route is mounted, and normal startup, registration and login never require or call SMTP.
 
 ## Frontend/backend cross-origin configuration
 
@@ -75,12 +64,12 @@ The script runs `check_release_hygiene.py`, refuses a dirty tree, archives commi
 
 1. Confirm the checkout contains no `.env`, `*.db`, backup database, `.venv`, `.deps`, `node_modules`, `dist` or test artifact.
 2. Create the Backend virtual environment and install `requirements.txt`.
-3. Copy both `.env.example` files and generate new local secrets.
+3. Copy both `.env.example` files and generate a new JWT secret.
 4. Run Backend tests and start `/health`.
 5. Run `npm ci`, frontend typecheck, ESLint, tests and build.
 6. Start the frontend and verify its configured API origin.
-7. Configure SMTP only with credentials owned by the new operator; perform a real inbox smoke test separately.
+7. Register without a verification code, then verify both nickname/password and email/password login.
 
 ## Production hardening / future improvements
 
-The current course release intentionally keeps SQLAlchemy automatic schema creation and SQLite. A production deployment would need a managed database such as PostgreSQL, formal schema migrations, HTTPS, a reviewed secure-cookie/session strategy, managed secrets, production SMTP operations, monitoring, tested backup/restore and explicit deployment configuration. These are future improvements, not capabilities claimed or implemented by this repository.
+The current course release intentionally keeps SQLAlchemy automatic schema creation and SQLite. A production deployment would need persistent storage or a managed database, formal schema migrations, HTTPS, a reviewed secure-cookie/session strategy, managed secrets, monitoring, tested backup/restore and explicit deployment configuration. These are future improvements, not capabilities claimed or implemented by this repository.

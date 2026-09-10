@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import Settings
 from app.database.db import Base, build_engine, get_db
-from app.database.models import ContributionEventRecord, Repository, RepositoryAccess, SyncRecord, User, UserContact, VerificationCode
+from app.database.models import ContributionEventRecord, Repository, RepositoryAccess, SyncRecord, User, UserContact, UserCredential, VerificationCode
 from app.github.service import GitHubService
 from app.main import app
 from app.models.contribution import ContributionEvent, EventType
@@ -57,11 +57,6 @@ class AnalyzeGitHub:
 @pytest.fixture
 def completion_app(tmp_path, monkeypatch):
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
-    monkeypatch.setenv("VERIFICATION_CODE_SECRET", SECRET)
-    provider = CapturingProvider()
-    monkeypatch.setattr(
-        "app.services.verification_service.build_verification_provider", lambda settings: provider
-    )
     engine = build_engine(f"sqlite:///{tmp_path / 'completion.db'}")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, expire_on_commit=False)
@@ -81,7 +76,7 @@ def completion_app(tmp_path, monkeypatch):
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_service] = lambda: github
     client = TestClient(app)
-    yield client, Session, provider, github
+    yield client, Session, None, github
     app.dependency_overrides.clear()
     engine.dispose()
 
@@ -110,17 +105,10 @@ def test_repository_parser_rejects_unsupported_inputs(raw):
         parse_repository_input(raw)
 
 
-def test_registration_password_and_code_login_are_secure_and_compatible(completion_app):
-    client, Session, provider, _ = completion_app
-    sent = client.post("/api/auth/verification/send", json={
-        "email": " New.User@Example.com ", "purpose": "REGISTER"
-    })
-    assert sent.status_code == 200 and "code" not in sent.json()
-    email, code = provider.sent[-1]
-    assert len(code) == 6 and code.isdigit()
-    assert code not in sent.text
+def test_password_registration_and_identifier_login_are_secure_and_compatible(completion_app):
+    client, Session, _, _ = completion_app
     registered = client.post("/api/auth/register", json={
-        "username": "NewUser", "email": email, "verification_code": code,
+        "username": "NewUser", "email": "New.User@Example.com",
         "password": "new-user-pass", "confirm_password": "new-user-pass",
     })
     assert registered.status_code == 201
@@ -131,41 +119,45 @@ def test_registration_password_and_code_login_are_secure_and_compatible(completi
     assert client.post("/api/auth/login", json={
         "username": "NEWUSER", "password": "new-user-pass"
     }).status_code == 200
-    assert client.post("/api/auth/verification/send", json={
-        "email": email, "purpose": "LOGIN"
-    }).status_code == 200
-    login_code = provider.sent[-1][1]
-    assert client.post("/api/auth/login/code", json={
-        "email": email, "verification_code": login_code
-    }).status_code == 200
     with Session() as db:
-        contact = db.scalar(select(UserContact).where(UserContact.email == email))
-        records = list(db.scalars(select(VerificationCode).where(VerificationCode.target == email)))
-        assert contact.email_verified is True
-        assert all(record.code_digest not in {code, login_code} for record in records)
-        assert all(len(record.code_digest) == 64 for record in records)
+        contact = db.scalar(select(UserContact).where(UserContact.email == "new.user@example.com"))
+        credential = db.scalar(select(UserCredential).join(User).where(User.username == "newuser"))
+        assert contact.email_verified is False
+        assert credential.password_hash.startswith("$argon2")
+        assert credential.password_hash != "new-user-pass"
+        assert db.scalar(select(func.count(VerificationCode.id))) == 0
 
 
-def test_registration_rejects_duplicates_role_injection_and_password_mismatch(completion_app):
-    client, _, provider, _ = completion_app
+def test_registration_rejects_duplicates_role_injection_password_mismatch_and_invalid_email(completion_app):
+    client, _, _, _ = completion_app
     assert client.post("/api/auth/register", json={
-        "username": "bad", "email": "bad@example.com", "verification_code": "123456",
+        "username": "bad", "email": "bad@example.com",
         "password": "password-one", "confirm_password": "password-two",
     }).status_code == 422
-    client.post("/api/auth/verification/send", json={"email": "first@example.com", "purpose": "REGISTER"})
-    code = provider.sent[-1][1]
     assert client.post("/api/auth/register", json={
-        "username": "member", "email": "first@example.com", "verification_code": code,
+        "username": "bad-email", "email": "abc",
+        "password": "password-one", "confirm_password": "password-one",
+    }).status_code == 422
+    assert client.post("/api/auth/register", json={
+        "username": "first", "email": "first@example.com",
+        "password": "password-one", "confirm_password": "password-one",
+    }).status_code == 201
+    assert client.post("/api/auth/register", json={
+        "username": "FIRST", "email": "other@example.com",
         "password": "password-one", "confirm_password": "password-one",
     }).status_code == 409
     assert client.post("/api/auth/register", json={
-        "username": "attempt-admin", "email": "first@example.com", "verification_code": code,
+        "username": "other", "email": "FIRST@EXAMPLE.COM",
+        "password": "password-one", "confirm_password": "password-one",
+    }).status_code == 409
+    assert client.post("/api/auth/register", json={
+        "username": "attempt-admin", "email": "admin-attempt@example.com",
         "password": "password-one", "confirm_password": "password-one", "role": "ADMIN",
     }).status_code == 422
 
 
-def test_disabled_user_code_login_is_rejected_without_account_disclosure(completion_app):
-    client, Session, provider, _ = completion_app
+def test_disabled_user_password_login_remains_rejected(completion_app):
+    client, Session, _, _ = completion_app
     with Session() as db:
         user = AuthService(db).create_user(UserCreate(
             username="disabled", display_name="Disabled", email="disabled@example.com",
@@ -174,16 +166,12 @@ def test_disabled_user_code_login_is_rejected_without_account_disclosure(complet
         AuthService(db).update_user(
             user.id, type("Update", (), {"display_name": None, "role": None, "is_active": False})()
         )
-    response = client.post("/api/auth/verification/send", json={
-        "email": "disabled@example.com", "purpose": "LOGIN",
-    })
-    assert response.status_code == 200
-    assert response.json()["message"] == "If the account exists, a verification code has been sent"
-    assert provider.sent == []
-    rejected = client.post("/api/auth/login/code", json={
-        "email": "disabled@example.com", "verification_code": "123456",
-    })
-    assert rejected.status_code in {401, 403}
+    assert client.post("/api/auth/login", json={
+        "identifier": "disabled", "password": "disabled-pass-123",
+    }).status_code == 403
+    assert client.post("/api/auth/login", json={
+        "identifier": "disabled@example.com", "password": "disabled-pass-123",
+    }).status_code == 403
 
 
 def test_verification_cooldown_attempt_limit_expiry_and_single_use(tmp_path):
@@ -219,24 +207,20 @@ def test_verification_cooldown_attempt_limit_expiry_and_single_use(tmp_path):
     engine.dispose()
 
 
-def test_unknown_login_is_generic_and_smtp_misconfiguration_is_503(completion_app, monkeypatch):
-    client, _, provider, _ = completion_app
-    response = client.post("/api/auth/verification/send", json={
-        "email": "missing@example.com", "purpose": "LOGIN"
-    })
-    assert response.status_code == 200 and provider.sent == []
-    monkeypatch.setenv("VERIFICATION_PROVIDER", "smtp")
-    from app.services.email_provider import SMTPVerificationProvider
-    monkeypatch.setattr(
-        "app.services.verification_service.build_verification_provider",
-        lambda settings: SMTPVerificationProvider(settings),
-    )
-    response = client.post("/api/auth/verification/send", json={
-        "email": "smtp@example.com", "purpose": "REGISTER"
-    })
-    assert response.status_code == 503
-    assert response.json() == {"detail": "Email service unavailable"}
-    assert "SMTP_" not in response.text and "verification code" not in response.text.lower()
+def test_verification_routes_are_not_public_and_smtp_is_not_required(completion_app):
+    client, Session, _, _ = completion_app
+    assert client.post("/api/auth/verification/send", json={
+        "email": "new@example.com", "purpose": "REGISTER",
+    }).status_code == 404
+    assert client.post("/api/auth/login/code", json={
+        "email": "new@example.com", "verification_code": "123456",
+    }).status_code == 404
+    assert client.post("/api/auth/register", json={
+        "username": "no-smtp", "email": "no-smtp@example.com",
+        "password": "password-one", "confirm_password": "password-one",
+    }).status_code == 201
+    with Session() as db:
+        assert db.scalar(select(func.count(VerificationCode.id))) == 0
 
 
 def test_analyze_reuses_repository_obeys_scope_and_rbac(completion_app):

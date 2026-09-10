@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database.models import Member, Repository, User, UserContact, UserCredential
-from app.models.schemas import RegistrationRequest, UserCreate, UserUpdate, VerificationPurpose
+from app.models.schemas import RegistrationRequest, UserCreate, UserUpdate
 from app.security.passwords import hash_password, verify_password
 from app.services.errors import AuthenticationError, ConflictError, ForbiddenError, NotFoundError
 
@@ -63,7 +63,7 @@ class AuthService:
             raise ForbiddenError("Account is disabled")
         return row.User
 
-    def register(self, payload: RegistrationRequest, verification_service) -> User:
+    def register(self, payload: RegistrationRequest) -> User:
         username = normalize_username(payload.username)
         email = normalize_email(str(payload.email))
         if self.db.scalar(select(User.id).where(func.lower(User.username) == username)):
@@ -71,14 +71,11 @@ class AuthService:
         if self.db.scalar(select(UserContact.id).where(func.lower(UserContact.email) == email)):
             raise ConflictError("Email already exists")
         try:
-            verification_service.verify(
-                email, VerificationPurpose.REGISTER, payload.verification_code, commit=False
-            )
             user = User(username=username, display_name=payload.username.strip(), role="MEMBER")
             user.credential = UserCredential(
                 password_hash=hash_password(payload.password), is_active=True
             )
-            user.contact = UserContact(email=email, email_verified=True)
+            user.contact = UserContact(email=email, email_verified=False)
             self.db.add(user)
             self.db.commit()
             self.db.refresh(user)
@@ -86,24 +83,6 @@ class AuthService:
         except Exception:
             self.db.rollback()
             raise
-
-    def authenticate_code(self, email: str, code: str, verification_service) -> User:
-        normalized = normalize_email(email)
-        row = self.db.execute(
-            select(User, UserCredential)
-            .join(UserContact, UserContact.user_id == User.id)
-            .join(UserCredential, UserCredential.user_id == User.id)
-            .where(func.lower(UserContact.email) == normalized, UserContact.email_verified.is_(True))
-        ).one_or_none()
-        if row is None:
-            raise AuthenticationError("Invalid email or verification code")
-        if not row.UserCredential.is_active:
-            raise ForbiddenError("Account is disabled")
-        try:
-            verification_service.verify(normalized, VerificationPurpose.LOGIN, code)
-        except AuthenticationError:
-            raise AuthenticationError("Invalid email or verification code") from None
-        return row.User
 
     def list_users(self) -> list[dict]:
         rows = self.db.execute(

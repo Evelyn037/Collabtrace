@@ -79,7 +79,6 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 python -m app.cli init-jwt-secret
-python -m app.cli init-verification-secret
 python -m uvicorn app.main:app --reload
 ```
 
@@ -92,11 +91,10 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 cp .env.example .env
 python -m app.cli init-jwt-secret
-python -m app.cli init-verification-secret
 python -m uvicorn app.main:app --reload
 ```
 
-The two `init-*` commands generate independent cryptographically random secrets and write them only to the ignored local `.env`. As an alternative, generate each value locally with `python -c "import secrets; print(secrets.token_urlsafe(48))"`; never reuse a secret published in documentation.
+The `init-jwt-secret` command generates a cryptographically random signing secret and writes it only to the ignored local `.env`. As an alternative, generate a value locally with `python -c "import secrets; print(secrets.token_urlsafe(48))"`; never use a secret published in documentation.
 
 Backend: `http://127.0.0.1:8000`; Swagger: `http://127.0.0.1:8000/docs`; Health: `http://127.0.0.1:8000/health`.
 
@@ -122,23 +120,17 @@ Copy each committed `.env.example` to an ignored local `.env`. Empty secret fiel
 | `JWT_SECRET` | Yes | Empty | JWT signing; generate an independent random value |
 | `JWT_ALGORITHM` | Yes | `HS256` | JWT algorithm used by the current implementation |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Yes | `480` | Access-token lifetime |
-| `VERIFICATION_CODE_SECRET` | Yes | Empty | HMAC key for verification-code digests; do not reuse the JWT key |
-| `VERIFICATION_PROVIDER` | Yes | `console` | `console` for development, `smtp` for actual email delivery |
-| `SMTP_HOST`, `SMTP_FROM` | SMTP only | Empty | SMTP server and authorized sender |
-| `SMTP_PORT` | SMTP only | `587` | STARTTLS port |
-| `SMTP_USERNAME`, `SMTP_PASSWORD` | Provider-dependent | Empty | SMTP account and authorization credential from secret storage |
-| `SMTP_USE_STARTTLS` | SMTP only | `true` | Keep enabled for QQ Mail on port 587 |
+| `VERIFICATION_CODE_SECRET`, `VERIFICATION_PROVIDER` | No; legacy only | Empty / `console` | Retained for compatibility with the inactive verification subsystem |
+| `SMTP_*` | No; legacy only | Empty | Retained for compatibility; current registration and login never use SMTP |
 | `QUICK_ANALYZE_MAX_PAGES` | Yes | `1` | Bounds interactive GitHub collection |
 | `QUICK_ANALYZE_MAX_PRS_FOR_REVIEWS` | Yes | `5` | Bounds review collection |
 | `FRONTEND_ORIGINS` | Yes | Local ports 5173 | Exact comma-separated browser origins; do not use wildcard credentialed CORS |
 | `VITE_API_BASE_URL` | Frontend | `http://127.0.0.1:8000` | FastAPI base URL embedded by Vite |
 
 - Public GitHub repositories work without a PAT, but rate limits are lower.
-- `VERIFICATION_PROVIDER=console` prints one-time codes to the backend console for local development; it is not real email delivery.
-- `VERIFICATION_PROVIDER=smtp` uses server-side SMTP. For QQ Mail, use `smtp.qq.com`, port `587`, STARTTLS, the complete QQ email address and a QQ SMTP authorization code—not the QQ login password.
 - Never commit `.env`, JWT/verification secrets, SMTP credentials, SQLite databases or backup databases.
 
-The complete required/optional/default/recommendation matrix and QQ instructions are in [Deployment](docs/deployment.md). A deployed instance uses the server operator's configured sender; end users do not configure SMTP themselves.
+The complete required/optional/default/recommendation matrix is in [Deployment](docs/deployment.md). Legacy verification configuration is not part of the active account flow.
 
 ## Database
 
@@ -146,7 +138,7 @@ The current course version uses SQLite and SQLAlchemy `metadata.create_all()` sc
 
 ## Authentication and authorization
 
-Passwords are stored as Argon2id hashes and successful login returns a signed JWT. System roles govern System Users and GitHub diagnostics; repository roles independently govern Sync, Mapping and Access changes for one repository. Frontend guards improve navigation, but every protected operation is authorized again by FastAPI dependencies.
+Public registration accepts nickname (`username` in the API/database), email, password and password confirmation. Email is a unique login identifier but is not treated as verified ownership. Login accepts nickname or email plus password. Passwords are stored as Argon2id hashes and successful login returns a signed JWT. System roles govern System Users and GitHub diagnostics; repository roles independently govern Sync, Mapping and Access changes for one repository. Frontend guards improve navigation, but every protected operation is authorized again by FastAPI dependencies.
 
 ## GitHub integration
 
@@ -239,7 +231,7 @@ The script runs release hygiene first, refuses a dirty tree, uses `git archive` 
 
 ## Deployment scope and known limitations
 
-CollabTrace 0.2.0 is a local/self-hostable full-stack application, not a public cloud SaaS or distributed production platform. SQLite and automatic schema creation fit the current course scope. Production hardening would include a managed database such as PostgreSQL, formal schema migrations, HTTPS, stricter browser-session/cookie strategy, managed secrets, production SMTP operations, monitoring, backups and deployment configuration. These are documented future improvements, not implemented features.
+CollabTrace 0.2.0 is a local/self-hostable full-stack application, not a public cloud SaaS or distributed production platform. SQLite and automatic schema creation fit the current course scope. Production hardening would include persistent storage or a managed database, formal schema migrations, HTTPS, stricter browser-session/cookie strategy, managed secrets, monitoring, backups and deployment configuration. These are documented future improvements, not implemented features.
 
 ## Documentation
 

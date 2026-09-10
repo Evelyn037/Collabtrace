@@ -104,17 +104,11 @@ class VerificationPurpose(str, Enum):
     LOGIN = "LOGIN"
 
 
-class VerificationSendRequest(BaseModel):
-    email: EmailStr
-    purpose: VerificationPurpose
-
-
 class RegistrationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     username: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    verification_code: str = Field(pattern=r"^\d{6}$")
     password: str = Field(min_length=8, max_length=128)
     confirm_password: str = Field(min_length=8, max_length=128)
 
@@ -137,11 +131,6 @@ class RegistrationRequest(BaseModel):
 
 class RegistrationResponse(UserSummary):
     email: str
-
-
-class VerificationCodeLoginRequest(BaseModel):
-    email: EmailStr
-    verification_code: str = Field(pattern=r"^\d{6}$")
 
 
 class MembershipResponse(BaseModel):

@@ -9,7 +9,7 @@ cd collabtrace-backend
 python -m pytest
 ```
 
-Backend tests use temporary SQLite databases, mock GitHub transports/services and mock SMTP transports. They cover configuration, normalization, persistence, sync deduplication/update/failure behavior, authentication, registration and verification codes, System/Repository Role separation, mapping, Evidence, analytics, RCI invariants, release-sensitive logging and safe SMTP errors. Automated tests never send real email or require a real GitHub token.
+Backend tests use temporary SQLite databases and mock GitHub transports/services. They cover configuration, normalization, persistence, sync deduplication/update/failure behavior, password-only authentication and registration, System/Repository Role separation, mapping, Evidence, analytics, RCI invariants and release-sensitive logging. Isolated legacy verification/SMTP unit tests remain for compatibility, but active authentication tests never send email or require a real GitHub token.
 
 Run each Frontend quality gate separately:
 
@@ -46,7 +46,7 @@ CI uses test-only placeholder secrets, mocks external services and requires no r
 
 ## Manual smoke checklist
 
-- Authentication: password login, email-code login, registration, logout, invalid and disabled handling.
+- Authentication: nickname/password and email/password login, registration, logout, duplicate identifiers, password mismatch, invalid email and disabled handling.
 - Repository: Analyze, first-admin assignment, selector, role-aware Sync and Sync History.
 - RCI: Research Baseline, Custom Weights, active dimensions, coverage, medals and disclaimer.
 - Invariance: Contribution Composition and Evidence do not change with personal weights.
@@ -55,8 +55,8 @@ CI uses test-only placeholder secrets, mocks external services and requires no r
 - Authorization: System Admin and Repository Admin controls remain independent; direct unauthorized API calls fail.
 - Empty/error states: 401, 403, 404, missing data, empty analytics and failed sync.
 - Responsive layout: header, selector, mountain, dialogs, Evidence and Admin Center.
-- Optional integration: bounded Analyze against a public repository and a separately authorized real SMTP inbox test.
+- Optional integration: bounded Analyze against a public repository.
 
 ## Test scope
 
-Passing automated checks confirms the current covered behavior; it is not a claim of 100% coverage, load testing, penetration testing, cross-browser certification, complete GitHub history or production SMTP availability. Record exact test counts in a dated release report rather than hard-coding them in this maintained guide.
+Passing automated checks confirms the current covered behavior; it is not a claim of 100% coverage, load testing, penetration testing, cross-browser certification or complete GitHub history. Record exact test counts in a dated release report rather than hard-coding them in this maintained guide.

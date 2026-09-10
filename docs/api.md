@@ -6,12 +6,12 @@ Interactive OpenAPI is available at `/docs`. This guide describes business inten
 
 | Purpose | Method and path | Permission | Main request → response | Important errors |
 |---|---|---|---|---|
-| Password login | `POST /api/auth/login` | Public | identifier/username + password → JWT and safe user summary | 401 invalid credentials, 403 disabled |
-| Send code | `POST /api/auth/verification/send` | Public | email + `REGISTER`/`LOGIN` → provider message | 429 resend limit, 503 provider |
-| Register | `POST /api/auth/register` | Public | username, email, code, password confirmation → Standard User | 409 duplicate, 422 validation/code |
-| Code login | `POST /api/auth/login/code` | Public | email + six-digit code → JWT | 401/422 invalid or expired code |
+| Password login | `POST /api/auth/login` | Public | nickname/email identifier + password → JWT and safe user summary | 401 invalid credentials, 403 disabled |
+| Register | `POST /api/auth/register` | Public | username (nickname), email, password and confirmation → Standard User | 409 duplicate, 422 validation/mismatch |
 | Current user | `GET /api/auth/me` | Authenticated | — → safe user summary | 401 token, 403 disabled |
 | Memberships | `GET /api/auth/me/memberships` | Authenticated | — → mapped GitHub memberships | 401 |
+
+Email-code login and verification-code sending are no longer public API capabilities. Registration stores the email as an unverified unique account identifier; it does not claim mailbox ownership.
 
 ## Repositories and sync
 

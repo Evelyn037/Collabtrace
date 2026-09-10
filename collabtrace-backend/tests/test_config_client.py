@@ -42,6 +42,23 @@ def test_non_empty_token_is_loaded(tmp_path, monkeypatch):
     assert load_settings(env_file).github_token == "test_token"
 
 
+def test_settings_load_without_legacy_verification_or_smtp_environment(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("JWT_SECRET=test-jwt-secret\n", encoding="utf-8")
+    for name in (
+        "VERIFICATION_CODE_SECRET", "VERIFICATION_PROVIDER", "SMTP_HOST", "SMTP_PORT",
+        "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_USE_STARTTLS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    settings = load_settings(env_file)
+    assert settings.verification_code_secret is None
+    assert settings.verification_provider == "console"
+    assert settings.smtp_host is None
+    assert settings.smtp_username is None
+    assert settings.smtp_password is None
+    assert settings.smtp_from is None
+
+
 @pytest.mark.asyncio
 async def test_client_adds_bearer_header_without_leaking_token():
     seen_authorization = None

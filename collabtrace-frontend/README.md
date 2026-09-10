@@ -25,7 +25,7 @@ Copy-Item .env.example .env
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-前端不持有 GitHub Token、JWT Secret、Verification Secret 或 SMTP credential。所有 GitHub 请求都通过 Backend。
+前端不持有 GitHub Token、JWT Secret 或任何后端 credential。所有 GitHub 请求都通过 Backend。
 
 ## Run
 
@@ -46,11 +46,11 @@ npm run test
 npm run build
 ```
 
-`lint` 运行真正的 ESLint；`typecheck` 独立运行 TypeScript compiler checks。单元测试 Mock 前端 API module，不连接真实 Backend、GitHub 或 SMTP。`package-lock.json` 是可复现安装来源，应保留并在 CI/fresh clone 中使用 `npm ci`。
+`lint` 运行真正的 ESLint；`typecheck` 独立运行 TypeScript compiler checks。单元测试 Mock 前端 API module，不连接真实 Backend 或 GitHub。`package-lock.json` 是可复现安装来源，应保留并在 CI/fresh clone 中使用 `npm ci`。
 
 ## Routes
 
-- `/auth`：密码登录、邮箱验证码登录、MEMBER 注册
+- `/auth`：昵称/邮箱 + 密码登录，以及昵称、邮箱、密码、确认密码的 MEMBER 注册
 - `/dashboard`：Repository overview、Contributor mountain ranking、timeline
 - `/repositories/:repositoryId/contributors/:githubUsername`：Contributor profile、timeline、Contribution Evidence
 - `/admin`：仅当前 Repository ADMIN 可访问，固定包含 Repositories、Member Mapping、Access、Sync History 四个 Repository 级标签页

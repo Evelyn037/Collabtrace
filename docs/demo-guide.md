@@ -8,7 +8,7 @@ Target: a short, evidence-led walkthrough. Prepare local accounts and an already
 - **Right top 40% — Backend console:** `python -m uvicorn app.main:app --reload`
 - **Right bottom 40% — Swagger or persisted state:** `http://127.0.0.1:8000/docs`, Sync History, or a read-only database viewer
 
-Keep the backend console visible so the audience can correlate a frontend action with real `[FLOW]` stages. Never display `.env`, authorization headers, credentials, password hashes or verification-code records.
+Keep the backend console visible so the audience can correlate a frontend action with real `[FLOW]` stages. Never display `.env`, authorization headers, credentials or password hashes.
 
 ## Path A — Live data loop
 
@@ -23,7 +23,7 @@ User Input → React → HTTP → FastAPI → GitHub REST API → Normalize → 
 
 ## Main flow
 
-1. Log in with a locally prepared Standard User.
+1. Register with nickname, email, password and password confirmation, or log in with a locally prepared Standard User. Explain that email is an account identifier, not verified ownership.
 2. Paste a moderate public GitHub `owner/repo` into **分析 Repository**.
 3. Show loading, successful sync and that the creator is Repo ADMIN.
 4. Open **情况总览** and explain RCI as a team-relative index.
@@ -54,4 +54,4 @@ Live Analyze depends on network access, GitHub API availability and PAT rate lim
 - The Standard User is ADMIN on one repository and MEMBER on another.
 - A synchronized repository has at least four contributors and real Evidence URLs.
 - GitHub auth status has adequate remaining rate limit without exposing the token.
-- Keep the backend console available if using console verification codes.
+- Verify nickname/password and email/password login before the presentation; SMTP is not part of the demo.

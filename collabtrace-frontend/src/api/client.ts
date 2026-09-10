@@ -25,8 +25,14 @@ api.interceptors.response.use(undefined, (error: AxiosError) => {
 export function errorMessage(error: unknown): string {
   if (!axios.isAxiosError(error)) return '发生未知错误，请重试。'
   const detail = error.response?.data && typeof error.response.data === 'object'
-    ? (error.response.data as { detail?: string }).detail : undefined
-  if (detail) return detail
+    ? (error.response.data as { detail?: unknown }).detail : undefined
+  if (typeof detail === 'string' && detail) return detail
+  if (Array.isArray(detail)) {
+    const message = detail.find((item): item is { msg: string } => (
+      typeof item === 'object' && item !== null && typeof (item as { msg?: unknown }).msg === 'string'
+    ))?.msg
+    if (message) return message
+  }
   if (!error.response) return '无法连接服务器，请确认 Backend 已启动。'
   if (error.response.status === 403) return 'You do not have permission to perform this action.'
   if (error.response.status === 404) return '请求的数据不存在。'
