@@ -5,6 +5,7 @@ certifi==2026.7.22
 python-dotenv==1.2.3
 pydantic==2.13.5
 SQLAlchemy==2.0.52
+psycopg[binary]==3.3.5
 PyJWT==2.13.0
 pwdlib[argon2]==0.3.1
 email-validator==2.3.0

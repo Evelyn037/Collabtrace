@@ -5,6 +5,7 @@ import pytest
 
 from app import __version__
 from app.config import load_settings
+from app.database import db as database
 from app.github.client import GitHubClient
 from app.github.service import GitHubService
 from app.routes.github import auth_status, build_probe_warnings, save_probe_result
@@ -57,6 +58,30 @@ def test_settings_load_without_legacy_verification_or_smtp_environment(tmp_path,
     assert settings.smtp_username is None
     assert settings.smtp_password is None
     assert settings.smtp_from is None
+
+
+@pytest.mark.parametrize("source, expected", [
+    ("postgresql://db.example.invalid/database?sslmode=require", "postgresql+psycopg://db.example.invalid/database?sslmode=require"),
+    ("postgres://db.example.invalid/database", "postgresql+psycopg://db.example.invalid/database"),
+    ("postgresql+psycopg://db.example.invalid/database", "postgresql+psycopg://db.example.invalid/database"),
+    ("sqlite:///./data/collabtrace.db", "sqlite:///./data/collabtrace.db"),
+])
+def test_database_url_normalization_selects_psycopg_without_changing_parameters(source, expected):
+    assert database.normalize_database_url(source) == expected
+
+
+def test_engine_options_are_database_specific(monkeypatch):
+    calls = []
+    monkeypatch.setattr(database, "create_engine", lambda url, **kwargs: calls.append((url, kwargs)) or object())
+
+    database.build_engine("sqlite:///local.db")
+    database.build_engine("postgresql://db.example.invalid/database?sslmode=require")
+
+    assert calls[0] == ("sqlite:///local.db", {"connect_args": {"check_same_thread": False}})
+    assert calls[1] == (
+        "postgresql+psycopg://db.example.invalid/database?sslmode=require",
+        {"pool_pre_ping": True},
+    )
 
 
 @pytest.mark.asyncio

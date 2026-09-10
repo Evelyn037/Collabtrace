@@ -1,75 +1,143 @@
-# Deployment and Reproducibility
+# Free Public Deployment and Reproducibility
 
-CollabTrace V1 is a local/self-hostable full-stack application. No cloud deployment is included. It can run on another machine or server after dependencies and environment variables are configured.
+CollabTrace V1 supports two independent environments:
 
-## Local development and fresh clone
+```text
+Public: Browser → Render Static Site → Render Free Web Service → Neon PostgreSQL
+Local:  Browser → Vite frontend      → Local FastAPI            → SQLite
+```
 
-Prerequisites are Git, Python 3.11+ and Node.js 20.19+ or 22.12+ with npm, as required by Vite 7. Clone the repository, then follow the platform-specific Backend and Frontend commands in the root README. A fresh machine must create its own `.venv`, install Python requirements, run `npm ci`, and create local `.env` files from the examples. It does not need the original developer's `.venv`, `.deps`, `node_modules`, database or secrets.
+The public target is a free course demonstration and small-scale test deployment. It is not an always-on, high-availability, or enterprise service. No credit card, paid compute, Render persistent disk, custom domain, or paid Neon feature is required.
 
-SQLite tables are created on Backend startup. The default database is `collabtrace-backend/data/collabtrace.db`; preserve and back it up when it contains useful synchronized data. Backend direct dependencies are pinned in `requirements.txt`; Frontend dependency resolution is locked by `package-lock.json` and installed with `npm ci`.
+## Database selection
+
+SQLAlchemy selects the database from the backend `DATABASE_URL`:
+
+- Local default: `sqlite:///./data/collabtrace.db`.
+- Public deployment: the secret PostgreSQL connection string copied from Neon's **Connect** dialog.
+
+Standard `postgresql://` and legacy `postgres://` schemes are normalized in memory to SQLAlchemy's `postgresql+psycopg://` dialect. Query parameters such as `sslmode=require` and `channel_binding=require` remain unchanged. PostgreSQL connections use `pool_pre_ping=True` so a stale pooled connection can recover after serverless inactivity. SQLite alone receives `check_same_thread=False`.
+
+Backend startup runs SQLAlchemy `metadata.create_all()`. This creates missing tables in a fresh Neon database and does not drop tables, truncate data, or copy the local SQLite database. The public backend must never use SQLite on Render's ephemeral filesystem.
 
 ## Environment configuration
 
-| Variable | Required | Development default | Deployment recommendation |
+| Variable | Local | Render backend | Notes |
 |---|---|---|---|
-| `GITHUB_TOKEN` | Optional | Empty; lower public API limit | Fine-grained PAT with only the access actually needed |
-| `DATABASE_URL` | Yes | `sqlite:///./data/collabtrace.db` | Persistent writable volume/path |
-| `JWT_SECRET` | Yes | No shared default | Independent random value, at least 48 random bytes |
-| `JWT_ALGORITHM` | Yes | `HS256` | Keep `HS256` unless code and migration are reviewed |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Yes | `480` | Choose an appropriate session lifetime |
-| `VERIFICATION_CODE_SECRET`, `VERIFICATION_PROVIDER` | No; legacy only | Empty / `console` | Inactive compatibility subsystem; not used by registration or login |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_STARTTLS` | No; legacy only | Empty / `587` / `true` | Inactive compatibility configuration; not a production dependency |
-| `QUICK_ANALYZE_MAX_PAGES` | Yes | `1` | Keep bounded for interactive Analyze |
-| `QUICK_ANALYZE_MAX_PRS_FOR_REVIEWS` | Yes | `5` | Keep bounded for interactive Analyze |
-| `FRONTEND_ORIGINS` | Yes | Local 5173 origins | Comma-separated exact deployed frontend origins |
-| `VITE_API_BASE_URL` | Frontend build/runtime | `http://127.0.0.1:8000` | Public URL of the deployed FastAPI service |
+| `DATABASE_URL` | SQLite default | Required Neon secret | Backend only; never expose or log it |
+| `JWT_SECRET` | Required local secret | Required new production secret | Generate independently; do not reuse examples |
+| `GITHUB_TOKEN` | Optional | Recommended | Backend-only least-privilege token; raises API limits |
+| `FRONTEND_ORIGINS` | Local 5173 origins | Exact Render Static Site HTTPS origin plus optional local origins | Comma-separated; never `*` |
+| `JWT_ALGORITHM` | `HS256` | `HS256` | Preserve current JWT semantics |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `480` | Operator choice | Preserve the reviewed session policy |
+| `QUICK_ANALYZE_MAX_PAGES` | `1` | `1` | Bounds interactive GitHub collection |
+| `QUICK_ANALYZE_MAX_PRS_FOR_REVIEWS` | `5` | `5` | Bounds review collection |
+| `VERIFICATION_*`, `SMTP_*` | Optional legacy | Not required | Inactive authentication compatibility only |
+| `VITE_API_BASE_URL` | Local backend URL | Render backend HTTPS URL | Public frontend build variable, not a secret |
 
-Generate the JWT secret with `python -m app.cli init-jwt-secret` or independently with Python's `secrets` module. Never commit generated values.
+Never paste `DATABASE_URL`, JWT secrets, PATs, or passwords into chat, Git, documentation, screenshots, frontend variables, or deployment logs.
 
-## Password-only authentication
+## Neon preparation
 
-The active V1 account flow has no email-delivery dependency:
+Use the existing Neon Free project and PostgreSQL database. Do not enable Neon Auth, Functions, Object Storage, AI Gateway, or a paid plan.
 
-```text
-Register: nickname + email + password + confirm password
-Login: nickname or email + password
-```
-
-The API and database continue to use `username` as the nickname identity. Email is normalized and unique, but it is not verified ownership. Public registration always creates a global `MEMBER`; repository administration remains separately scoped.
-
-The legacy verification table, provider modules and optional environment names remain only to avoid destructive database/code cleanup. No public verification route is mounted, and normal startup, registration and login never require or call SMTP.
-
-## Frontend/backend cross-origin configuration
-
-`VITE_API_BASE_URL` tells the frontend where FastAPI is available. Every browser origin that may call FastAPI must appear exactly in `FRONTEND_ORIGINS`, including scheme and port. Avoid wildcard credentialed CORS.
-
-## Secret management
-
-- Keep `.env`, PATs, JWT secrets, verification secrets and SMTP authorization codes outside Git.
-- Never publish SQLite files or backups containing user and verification metadata.
-- Rotate a credential immediately if it was committed or exposed; removing only the latest file does not erase Git history.
-- Run `python scripts/check_release_hygiene.py` before release.
-
-## Safe GitHub release and ZIP packaging
-
-Review `git status`, commit the reviewed source and leave the non-ignored tree clean. Then use:
+1. In Neon, open the project and confirm the plan is Free.
+2. Choose a region near the intended Render backend region.
+3. Click **Connect** and keep the complete connection string, including its security query parameters.
+4. Paste it directly into Render's backend `DATABASE_URL` secret field. Do not send it through chat.
+5. For the pre-deployment integration gate, set the connection string only in the current local process using a hidden prompt:
 
 ```powershell
-python scripts/create_submission_archive.py
+$env:DATABASE_URL = Read-Host -MaskInput "Neon DATABASE_URL"
+python -m pytest tests/test_postgres_integration.py
+Remove-Item Env:DATABASE_URL
 ```
 
-The script runs `check_release_hygiene.py`, refuses a dirty tree, archives committed content only and inspects the resulting `submission/collabtrace-submission.zip` for forbidden paths. Directly compressing the development directory can accidentally include ignored credentials, databases and dependency directories.
+The test creates missing schema objects, validates PostgreSQL behavior, and rolls back its generated smoke-test rows. It does not drop schema or copy local demo data.
 
-## Fresh clone verification checklist
+## Render backend
 
-1. Confirm the checkout contains no `.env`, `*.db`, backup database, `.venv`, `.deps`, `node_modules`, `dist` or test artifact.
-2. Create the Backend virtual environment and install `requirements.txt`.
-3. Copy both `.env.example` files and generate a new JWT secret.
-4. Run Backend tests and start `/health`.
-5. Run `npm ci`, frontend typecheck, ESLint, tests and build.
-6. Start the frontend and verify its configured API origin.
-7. Register without a verification code, then verify both nickname/password and email/password login.
+Create **New → Web Service** from the connected GitHub repository.
 
-## Production hardening / future improvements
+| Setting | Value |
+|---|---|
+| Service plan | Free |
+| Root Directory | `collabtrace-backend` |
+| Runtime | Python |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Health Check Path | `/health` |
+| Region | Prefer the closest available region to Neon |
 
-The current course release intentionally keeps SQLAlchemy automatic schema creation and SQLite. A production deployment would need persistent storage or a managed database, formal schema migrations, HTTPS, a reviewed secure-cookie/session strategy, managed secrets, monitoring, tested backup/restore and explicit deployment configuration. These are future improvements, not capabilities claimed or implemented by this repository.
+Set `DATABASE_URL`, `JWT_SECRET`, and optionally `GITHUB_TOKEN` only in the Web Service environment. SMTP and verification variables are not needed. Do not attach a persistent disk: all durable public data belongs in Neon.
+
+The first deployment may initially use local origins in `FRONTEND_ORIGINS`. After the Static Site URL exists, update it to include that exact HTTPS origin and redeploy the backend.
+
+Render Free Web Services spin down after 15 minutes without inbound traffic and may take about one minute to wake. Their local filesystem is ephemeral. Do not add cron pings, self-pings, uptime bots, or another keep-alive workaround.
+
+## Production System Admin bootstrap
+
+Render Free does not provide shell access. Create the first System Admin from a trusted local terminal while targeting Neon. The URL and password are entered interactively and removed from the process afterward:
+
+```powershell
+cd collabtrace-backend
+$env:DATABASE_URL = Read-Host -MaskInput "Neon DATABASE_URL"
+python -m app.cli create-admin
+Remove-Item Env:DATABASE_URL
+```
+
+The CLI uses the same SQLAlchemy configuration and Argon2id password hashing as the server. There is no public administrator-creation endpoint and no hard-coded credential.
+
+## Render frontend
+
+Create **New → Static Site** from the same repository.
+
+| Setting | Value |
+|---|---|
+| Root Directory | `collabtrace-frontend` |
+| Build Command | `npm ci && npm run build` |
+| Publish Directory | `dist` |
+| `VITE_API_BASE_URL` | Exact Render backend HTTPS origin |
+
+Add this rewrite in the Static Site Redirects/Rewrites settings:
+
+| Source | Destination | Action |
+|---|---|---|
+| `/*` | `/index.html` | Rewrite |
+
+The frontend environment must not contain `DATABASE_URL`, `GITHUB_TOKEN`, `JWT_SECRET`, or any Neon credential. `VITE_API_BASE_URL` is compiled into the public bundle, so changing it requires a rebuild.
+
+## Public acceptance flow
+
+Use an incognito browser and a small or medium public repository:
+
+1. Open the Static Site over HTTPS and register with nickname, email, password, and confirmation.
+2. Log in by nickname, log out, then log in by email.
+3. Confirm the new global role is `MEMBER` / Standard User.
+4. Analyze a new repository and confirm the creator receives Repository `ADMIN`, without becoming System Admin.
+5. Verify Dashboard, Research Baseline, Custom Weights, Quick View, Calculation Basis, Contributor Detail, Evidence, and the original GitHub link.
+6. Confirm weight changes do not alter Contribution Composition or Evidence.
+7. Redeploy or restart the backend, then verify the user, repository, events, and SyncRecord still exist.
+8. Inspect browser requests: application API traffic goes only to the Render backend. The frontend never calls Neon or GitHub as an API data source.
+9. Check 1440px, 1024px, and 390px layouts, browser console, CORS, and mixed-content errors.
+
+## Local defense fallback
+
+Without a process-level production `DATABASE_URL`, local startup continues to use the existing SQLite database. Do not delete, migrate, rename, or upload it. After public deployment, rerun the full SQLite test suite and verify the prepared local login, Dashboard, RCI, Contributor, and Evidence flow. See [Defense Fallback](defense-fallback.md).
+
+## Release and security checklist
+
+1. Confirm no `.env`, database, backup, `.venv`, `node_modules`, `dist`, PAT, JWT secret, or Neon URL is tracked.
+2. Run backend tests, frontend typecheck, lint, tests, and build.
+3. Run `python scripts/check_release_hygiene.py` immediately before commit and push.
+4. Stage only explicit Phase 5 files; never use `git add .`.
+5. Push normally without force or history rewriting.
+
+## Known limitations
+
+- Render Free backend cold starts are expected after inactivity.
+- Free service bandwidth, build minutes, and instance hours are limited by Render.
+- Neon Free capacity and compute limits apply.
+- `metadata.create_all()` is suitable for the current fresh deployment; future schema evolution needs formal migrations.
+- SQLite remains the local defense fallback, not the public persistence layer.
+- No availability, load, penetration-test, backup, or disaster-recovery guarantee is claimed.

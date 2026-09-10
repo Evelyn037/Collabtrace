@@ -26,7 +26,7 @@ CollabTrace provides evidence-supported collaboration interpretation, not automa
 - Repository 情况总览、活动趋势、RCI 山峰排名与金银铜奖牌。
 - Research Baseline、会话隔离的 Custom Weights、Contribution Composition 与 Why This RCI。
 - Contributor Detail、Evidence 筛选及安全跳转到原始 GitHub 记录。
-- Username/Email + Password、Email Code、Registration、JWT 与账号禁用。
+- Nickname/Email + Password、Registration、JWT 与账号禁用。
 - System Role、Repository Role、Member Mapping 三套独立语义。
 - Repository Admin Center 与独立的 System Users 信息架构。
 
@@ -37,7 +37,7 @@ Browser → React 19 + TypeScript + Vite
                     ↓ JSON / JWT
               FastAPI + SQLAlchemy
                  ↙             ↘
-       GitHub REST API          SQLite
+       GitHub REST API    SQLite (local) / PostgreSQL (public demo)
 ```
 
 Frontend 不直接请求 `api.github.com`，GitHub Token 只存在后端环境。详细数据流见 [Architecture](docs/architecture.md)。
@@ -47,7 +47,7 @@ Frontend 不直接请求 `api.github.com`，GitHub Token 只存在后端环境�
 | Frontend | React 19, TypeScript, Vite, React Router, Axios, ECharts |
 | Backend | Python, FastAPI, SQLAlchemy, Pydantic, HTTPX |
 | Security | Argon2id password hash, signed JWT Bearer tokens |
-| Persistence | SQLite |
+| Persistence | SQLite locally; Neon PostgreSQL for the public demo |
 | Tests | pytest, Vitest, Testing Library, jsdom |
 
 ## Directory structure
@@ -116,7 +116,7 @@ Copy each committed `.env.example` to an ignored local `.env`. Empty secret fiel
 | Variable | Required | Development default | Purpose / non-development recommendation |
 |---|---|---|---|
 | `GITHUB_TOKEN` | No for public repositories | Empty | Raises GitHub API limits; use a least-privilege fine-grained PAT |
-| `DATABASE_URL` | Yes | `sqlite:///./data/collabtrace.db` | SQLite connection; use a persistent writable path |
+| `DATABASE_URL` | Production only | `sqlite:///./data/collabtrace.db` | Neon PostgreSQL connection string stored only in the backend environment |
 | `JWT_SECRET` | Yes | Empty | JWT signing; generate an independent random value |
 | `JWT_ALGORITHM` | Yes | `HS256` | JWT algorithm used by the current implementation |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Yes | `480` | Access-token lifetime |
@@ -134,7 +134,7 @@ The complete required/optional/default/recommendation matrix is in [Deployment](
 
 ## Database
 
-The current course version uses SQLite and SQLAlchemy `metadata.create_all()` schema creation. On first Backend startup, tables are created automatically at `collabtrace-backend/data/collabtrace.db` unless `DATABASE_URL` overrides the location. Database files and backups are local runtime data and must never be committed or included in a submission archive.
+SQLAlchemy selects the database from `DATABASE_URL`. Without a production override, CollabTrace continues to use `collabtrace-backend/data/collabtrace.db`; the existing local database is not migrated or uploaded. A PostgreSQL URL selects psycopg 3 and enables connection pre-ping for serverless wake-up recovery. `metadata.create_all()` safely creates missing tables in a fresh database without dropping existing data. Database files, backups, and connection URLs must never be committed or included in a submission archive.
 
 ## Authentication and authorization
 
@@ -153,6 +153,8 @@ python -m app.cli create-admin
 ```
 
 Passwords are entered interactively and are never accepted as command-line arguments. Demo accounts must be created or prepared locally; no credentials are stored in this repository.
+
+For the public demo, the same CLI can target Neon when the operator sets `DATABASE_URL` only in the current local process. Enter both the connection string and admin password interactively; never paste either into source, documentation, frontend variables, or chat. See [Deployment](docs/deployment.md).
 
 A standard user who first analyzes a new repository automatically becomes that repository's `ADMIN`. An existing repository never grants elevated access merely because a user analyzes it again.
 
@@ -229,9 +231,9 @@ python scripts/create_submission_archive.py
 
 The script runs release hygiene first, refuses a dirty tree, uses `git archive` to package only committed files, and verifies the ZIP contains no forbidden runtime paths. The output is `submission/collabtrace-submission.zip`. Never compress the development directory directly.
 
-## Deployment scope and known limitations
+## Free public demo deployment
 
-CollabTrace 0.2.0 is a local/self-hostable full-stack application, not a public cloud SaaS or distributed production platform. SQLite and automatic schema creation fit the current course scope. Production hardening would include persistent storage or a managed database, formal schema migrations, HTTPS, stricter browser-session/cookie strategy, managed secrets, monitoring, backups and deployment configuration. These are documented future improvements, not implemented features.
+The deployment target is a Render Static Site, a Render Free Web Service, and Neon PostgreSQL. Render serves HTTPS, while Neon keeps application data off Render's ephemeral filesystem. The free backend may sleep after inactivity and can take about one minute to wake. This is a course demonstration and small-scale testing deployment, not an always-on or high-availability production claim. The complete setup and the independent local SQLite fallback are documented in [Deployment](docs/deployment.md) and [Defense Fallback](docs/defense-fallback.md).
 
 ## Documentation
 
@@ -242,6 +244,7 @@ CollabTrace 0.2.0 is a local/self-hostable full-stack application, not a public 
 - [Demo Guide](docs/demo-guide.md)
 - [Testing](docs/testing.md)
 - [Deployment](docs/deployment.md)
+- [Defense Fallback](docs/defense-fallback.md)
 - [Product Rationale](docs/product-rationale.md)
 - [Vibe Coding Log](docs/vibe-coding-log.md)
 - [Team Contributions](docs/team-contributions.md)

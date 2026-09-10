@@ -140,6 +140,15 @@ async def test_sync_insert_deduplicate_update_mapping_and_evidence(db):
     assert db.scalar(select(func.count(SyncRecord.id)).where(SyncRecord.status == "SUCCESS")) == 3
 
 
+def test_sync_treats_equivalent_naive_and_utc_datetimes_as_unchanged():
+    utc_value = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+    record = ContributionEventRecord(event_created_at=utc_value)
+
+    assert SyncService._apply_changes(
+        record, {"event_created_at": utc_value.replace(tzinfo=None)}
+    ) is False
+
+
 @pytest.mark.asyncio
 async def test_failed_sync_preserves_events_and_records_failure(db):
     repository = await create_repository(db)

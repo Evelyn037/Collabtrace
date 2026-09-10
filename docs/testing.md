@@ -11,6 +11,14 @@ python -m pytest
 
 Backend tests use temporary SQLite databases and mock GitHub transports/services. They cover configuration, normalization, persistence, sync deduplication/update/failure behavior, password-only authentication and registration, System/Repository Role separation, mapping, Evidence, analytics, RCI invariants and release-sensitive logging. Isolated legacy verification/SMTP unit tests remain for compatibility, but active authentication tests never send email or require a real GitHub token.
 
+The PostgreSQL integration test is skipped unless the current process has a PostgreSQL `DATABASE_URL` (or `COLLABTRACE_POSTGRES_TEST_URL`). It creates missing tables, runs auth, uniqueness, repository access, sync deduplication, analytics and RCI checks inside an outer transaction, then rolls back all smoke-test rows. Use only a database the operator has authorized for schema initialization; never put its URL in a command, source file, test output, or chat.
+
+```powershell
+$env:DATABASE_URL = Read-Host -MaskInput "Neon DATABASE_URL"
+python -m pytest tests/test_postgres_integration.py
+Remove-Item Env:DATABASE_URL
+```
+
 Run each Frontend quality gate separately:
 
 ```powershell
@@ -38,7 +46,7 @@ The checker reads Git tracked files only. It rejects local environments, depende
 
 `.github/workflows/ci.yml` runs three independent jobs for pushes and pull requests:
 
-1. Backend dependency installation and pytest on Python 3.12.
+1. Backend dependency installation and SQLite pytest on Python 3.12; PostgreSQL integration remains an explicit deployment gate.
 2. Frontend `npm ci`, typecheck, ESLint, tests and build on Node 22.
 3. Dependency-free repository hygiene validation.
 
@@ -56,6 +64,7 @@ CI uses test-only placeholder secrets, mocks external services and requires no r
 - Empty/error states: 401, 403, 404, missing data, empty analytics and failed sync.
 - Responsive layout: header, selector, mountain, dialogs, Evidence and Admin Center.
 - Optional integration: bounded Analyze against a public repository.
+- PostgreSQL gate: schema, password authentication, uniqueness, RepositoryAccess, event deduplication, analytics and RCI all pass against the authorized Neon database.
 
 ## Test scope
 

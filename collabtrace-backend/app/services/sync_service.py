@@ -168,7 +168,14 @@ class SyncService:
     def _apply_changes(record: ContributionEventRecord, values: dict) -> bool:
         changed = False
         for field, value in values.items():
-            if getattr(record, field) != value:
+            current = getattr(record, field)
+            if (
+                isinstance(current, datetime)
+                and isinstance(value, datetime)
+                and db_datetime(current) == db_datetime(value)
+            ):
+                continue
+            if current != value:
                 setattr(record, field, value)
                 changed = True
         return changed

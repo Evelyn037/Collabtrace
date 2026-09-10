@@ -2,7 +2,7 @@
 
 ## System boundary
 
-CollabTrace V1 is a local full-stack application. It uses no Redis, Docker, PostgreSQL, webhook, OAuth, LLM or cloud deployment component.
+CollabTrace V1 has one SQLAlchemy data model with two environment-selected deployments: local SQLite for development and defense fallback, and Neon PostgreSQL for the free public demo. It uses no Redis, Docker, webhook, OAuth, LLM, or browser-to-database connection.
 
 ```mermaid
 flowchart LR
@@ -12,7 +12,9 @@ flowchart LR
   G -->|REST API| GH[GitHub]
   GH --> N[Normalization]
   N --> S[SyncService]
-  S --> DB[(SQLite)]
+  S --> DB{SQLAlchemy database selection}
+  DB --> L[(Local SQLite)]
+  DB --> P[(Neon PostgreSQL)]
   DB --> R[RCI + Analytics]
   R --> F
   F --> E[Evidence link]
@@ -32,7 +34,7 @@ The frontend only calls FastAPI. GitHub credentials and GitHub API traffic remai
 ## Authentication flow
 
 ```text
-Register: React → FastAPI validation → Argon2id hash → SQLite
+Register: React → FastAPI validation → Argon2id hash → SQLAlchemy database
 Login: React → nickname/email lookup → Argon2id verify → signed JWT
 ```
 
@@ -45,7 +47,7 @@ Public registration always creates a global `MEMBER` (shown as Standard User). E
 3. `GitHubService` fetches a bounded number of repository pages and PR reviews.
 4. Raw GitHub objects are normalized into Commit, Pull Request, Issue and Review events.
 5. `SyncService` upserts by `(repository_id, event_id)`, updates mapping references and records the sync result.
-6. Analytics read SQLite only; opening Dashboard or Quick View does not call GitHub.
+6. Analytics read the configured database only; opening Dashboard or Quick View does not call GitHub.
 7. `ContributionIndexService` applies RCI_V1 filters and team normalization at request time.
 8. Evidence returns stored records and their original `github_url` when available.
 
@@ -78,7 +80,7 @@ erDiagram
 
 ## Consistency and recovery
 
-Contribution events have a unique `(repository_id, event_id)` constraint. Repeated syncs update existing rows rather than multiplying evidence. A sync creates a durable `RUNNING` record, then ends as `SUCCESS` or `FAILED`, including cancellation. SQLite is the source of truth; backup files under `data/backups/` are ignored by Git.
+Contribution events have a unique `(repository_id, event_id)` constraint. Repeated syncs update existing rows rather than multiplying evidence. A sync creates a durable `RUNNING` record, then ends as `SUCCESS` or `FAILED`, including cancellation. Local runs use the existing SQLite file; the public deployment uses Neon so Render restarts and spin-down never own persistent application data. Backup files under `data/backups/` are ignored by Git.
 
 ## Scope limits
 
