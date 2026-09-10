@@ -235,6 +235,28 @@ The script runs release hygiene first, refuses a dirty tree, uses `git archive` 
 
 The deployment target is a Render Static Site, a Render Free Web Service, and Neon PostgreSQL. Render serves HTTPS, while Neon keeps application data off Render's ephemeral filesystem. The free backend may sleep after inactivity and can take about one minute to wake. This is a course demonstration and small-scale testing deployment, not an always-on or high-availability production claim. The complete setup and the independent local SQLite fallback are documented in [Deployment](docs/deployment.md) and [Defense Fallback](docs/defense-fallback.md).
 
+### Public demo access (no local installation)
+
+The hosted demonstration only requires a modern browser; visitors do not need to clone the repository, install Python or Node.js, or configure environment variables.
+
+1. Open the Backend health endpoint: <https://collabtrace.onrender.com/health>.
+2. If the Render Free instance is waking from idle, wait until the endpoint returns `{"status":"ok", ...}`. This can take about one minute.
+3. Open the public Frontend: <https://collabtrace-app.onrender.com>.
+4. Register with a nickname, email and password, then sign in with either the nickname or email.
+5. Analyze a small public GitHub repository, or open an existing synchronized repository to inspect its Dashboard, RCI explanation, contributors and Evidence links.
+6. Log out after using a shared computer. If the page reports that it cannot connect, confirm the health endpoint is awake and then select **重试**.
+
+The public demo accepts only public GitHub repository data. Do not enter sensitive personal information, private repository credentials, database URLs, JWT secrets or GitHub tokens. Public registration does not verify email ownership, and the free deployment is intended for limited course demonstrations rather than load testing or unrestricted production use.
+
+For an independent deployment, the public endpoints must be paired explicitly:
+
+| Service | Setting | Example for this deployment |
+|---|---|---|
+| Render Static Site | `VITE_API_BASE_URL` | `https://collabtrace.onrender.com` |
+| Render Web Service | `FRONTEND_ORIGINS` | `https://collabtrace-app.onrender.com` |
+
+Set these values in the corresponding Render service environment, not in committed `.env` files. After changing `VITE_API_BASE_URL`, redeploy the Static Site; after changing `FRONTEND_ORIGINS`, redeploy the Web Service. Keep `DATABASE_URL`, `JWT_SECRET` and an optional least-privilege `GITHUB_TOKEN` exclusively in the Backend environment. Full provisioning instructions are in [Deployment](docs/deployment.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
