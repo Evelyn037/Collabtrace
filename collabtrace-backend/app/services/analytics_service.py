@@ -168,7 +168,13 @@ class AnalyticsService:
             )
             .group_by(day).order_by(day)
         ).mappings().all()
-        return [dict(row) for row in rows]
+        return [self._timeline_dict(row) for row in rows]
+
+    @staticmethod
+    def _timeline_dict(row) -> dict:
+        item = dict(row)
+        item["date"] = str(item["date"])
+        return item
 
     def _timeline(self, repository_id: int, member_id: int | None) -> list[dict]:
         day = func.date(Event.event_created_at).label("date")
@@ -179,4 +185,4 @@ class AnalyticsService:
                        for event_type, field in TYPE_FIELDS.items()]
         rows = self.db.execute(select(day, func.count(Event.id).label("total"), *expressions)
                                .where(*filters).group_by(day).order_by(day)).mappings().all()
-        return [dict(row) for row in rows]
+        return [self._timeline_dict(row) for row in rows]

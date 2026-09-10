@@ -157,6 +157,14 @@ async def test_postgresql_schema_auth_rbac_dedup_analytics_and_rci():
         assert second["inserted"] == 0
         assert second["unchanged"] == 1
         assert AnalyticsService(db).overview(repository.id)["totals"]["events"] == 1
+        assert AnalyticsService(db).repository_timeline(repository.id) == [{
+            "date": "2026-09-10",
+            "total": 1,
+            "commits": 1,
+            "pull_requests": 0,
+            "issues": 0,
+            "reviews": 0,
+        }]
         rci = ContributionIndexService(db).calculate(repository.id)
         assert rci["methodology_version"] == "RCI_V1"
         assert rci["contributors"][0]["github_username"] == "postgres-smoke-user"
