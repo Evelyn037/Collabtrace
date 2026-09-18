@@ -4,6 +4,14 @@ CollabTrace 是一个前后端分离的协作贡献分析系统。它从真实 G
 
 RCI（Relative Contribution Index，相对贡献指数）只描述当前仓库、当前同步范围内可验证的 GitHub 协作行为，不是绩效、能力、代码质量、工作时长或绝对劳动价值评分。
 
+## Live demo · 公网演示
+
+- Public Frontend / 在线试用：<https://collabtrace-app.onrender.com>
+- Backend Health / 后端状态：<https://collabtrace.onrender.com/health>
+- Source Code / 项目源码：<https://github.com/Evelyn037/Collabtrace>
+
+在线试用无需安装 Python、Node.js 或数据库。Render 免费后端闲置后会自动休眠，首次访问可能需要等待约一分钟；如页面暂时提示无法连接，请先打开 Backend Health，待其返回 `{"status":"ok", ...}` 后刷新前端。README 后文出现的 `127.0.0.1` 和 `localhost` 地址仅用于开发者在自己的计算机上运行源码，不是公网访问地址。
+
 ## Core problem
 
 传统团队作业往往只展示最终产物：协作过程不透明、个人贡献难以客观说明，结论也缺少可回到原始 GitHub 记录的证据链。CollabTrace 将这些真实记录保存为可核验的团队协作视图。
